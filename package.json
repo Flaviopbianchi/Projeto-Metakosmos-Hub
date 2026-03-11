@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@linear/sdk": "^77.0.0",
     "@next-auth/prisma-adapter": "^1.0.7",
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",

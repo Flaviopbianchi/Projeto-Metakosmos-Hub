@@ -1,0 +1,168 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  CheckSquare,
+  MessageSquare,
+  Calendar,
+  Mail,
+  ShoppingBag,
+  HardDrive,
+  BookOpen,
+  BarChart2,
+  GraduationCap,
+  FileText,
+  Settings,
+  LogOut,
+  ChevronDown,
+} from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import Image from "next/image";
+
+const font = "'Plus Jakarta Sans', -apple-system, sans-serif";
+
+const navItems = [
+  { href: "/dashboard", label: "Página inicial", icon: LayoutDashboard },
+  { href: "/linear", label: "Linear", icon: CheckSquare },
+  { href: "/slack", label: "Slack", icon: MessageSquare },
+  { href: "/agenda", label: "Agenda", icon: Calendar },
+  { href: "/email", label: "Email", icon: Mail },
+  { href: "/analytics", label: "Dashboard e Analytics", icon: BarChart2 },
+  { href: "/loja", label: "Loja", icon: ShoppingBag },
+  { href: "/drive", label: "Drive", icon: HardDrive },
+  { href: "/marca", label: "Identidade e cores", icon: BookOpen, isNew: true },
+];
+
+const bottomItems = [
+  { href: "/tutoriais", label: "Tutoriais", icon: GraduationCap },
+  { href: "/docs", label: "Documentação", icon: FileText },
+  { href: "/conta", label: "Minha conta", icon: Settings },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+
+  return (
+    <aside
+      style={{
+        background: "#ffffff",
+        borderRight: "1px solid rgba(0,0,0,0.08)",
+        width: 220,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflowY: "auto",
+      }}
+    >
+      {/* Workspace selector */}
+      <div style={{ padding: "12px 10px 8px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, cursor: "pointer" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "#f5f5f7")}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+        >
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: "#1C1D1D", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, fontFamily: font }}>mK</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: font, fontWeight: 600, fontSize: 13, color: "#1C1D1D", lineHeight: "16px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Metakosmos Studio
+            </p>
+            <p style={{ fontFamily: font, fontWeight: 400, fontSize: 10, color: "#6e6e73", lineHeight: "14px" }}>
+              Owner · Organização ativa
+            </p>
+          </div>
+          <ChevronDown size={12} color="#aeaeb2" />
+        </div>
+      </div>
+
+      {/* Main nav */}
+      <nav style={{ padding: "8px 10px", flex: 1 }}>
+        {navItems.map(({ href, label, icon: Icon, isNew }) => {
+          const active = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                padding: "7px 10px",
+                borderRadius: 10,
+                marginBottom: 1,
+                background: active ? "#1C1D1D" : "transparent",
+                color: active ? "#ffffff" : "#3d3d3d",
+                textDecoration: "none",
+                fontFamily: font,
+                fontWeight: active ? 600 : 400,
+                fontSize: 13,
+                transition: "background 0.1s",
+              }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            >
+              <Icon size={15} />
+              <span style={{ flex: 1 }}>{label}</span>
+              {isNew && (
+                <span style={{ background: "#00d67c", color: "#fff", fontFamily: font, fontWeight: 700, fontSize: 8, padding: "2px 6px", borderRadius: 20 }}>
+                  NEW
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Bottom nav */}
+      <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", padding: "8px 10px" }}>
+        {bottomItems.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 10px", borderRadius: 10, marginBottom: 1, color: "#3d3d3d", textDecoration: "none", fontFamily: font, fontWeight: 400, fontSize: 13 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+          >
+            <Icon size={15} />
+            {label}
+          </Link>
+        ))}
+      </div>
+
+      {/* User profile */}
+      <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", padding: "10px 10px 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", marginBottom: 2 }}>
+          {session?.user?.image ? (
+            <Image src={session.user.image} alt={session.user.name ?? ""} width={30} height={30} style={{ borderRadius: "50%", flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#1C1D1D", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, fontFamily: font }}>{session?.user?.name?.[0] ?? "U"}</span>
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: font, fontWeight: 600, fontSize: 12, color: "#1C1D1D", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {session?.user?.name ?? "Usuário"}
+            </p>
+            <p style={{ fontFamily: font, fontWeight: 400, fontSize: 10, color: "#6e6e73", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {session?.user?.email ?? ""}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => signOut()}
+          style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 10px", borderRadius: 10, width: "100%", background: "transparent", border: "none", cursor: "pointer", color: "#3d3d3d", fontFamily: font, fontWeight: 400, fontSize: 13, textAlign: "left" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+        >
+          <LogOut size={15} />
+          Sair
+        </button>
+      </div>
+    </aside>
+  );
+}

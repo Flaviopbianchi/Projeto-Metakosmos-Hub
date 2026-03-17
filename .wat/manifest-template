@@ -1,0 +1,17 @@
+# WAT Framework Manifest
+# Project: [PROJECT_NAME]
+# Initialized: [DATE]
+
+framework_version: 2.0
+project_name: [project-slug]
+project_type: [product|automation|hybrid]
+codebase_type: [greenfield|brownfield]
+initialized: [DATE]
+design_system: [design-system-name or "none"]
+
+# For current status, read:
+# - context/ROADMAP.md (project phase and task status)
+# - context/AUDIT-REPORT.md (codebase health assessment) [brownfield only]
+# - skills/.registry (installed and adapted skills)
+# - context/CHANGELOG.md (what shipped)
+# - context/STACK.md (tech stack, git workflow, deploy)

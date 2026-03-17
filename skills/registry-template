@@ -1,0 +1,26 @@
+# Installed Skills Registry
+
+Format: skill-name | source | version | install-date | adapted
+
+---
+
+# Core Workflow Skills (Superpowers)
+brainstorming | obra/superpowers | [version] | [date] | no
+writing-plans | obra/superpowers | [version] | [date] | no
+test-driven-development | obra/superpowers | [version] | [date] | no
+systematic-debugging | obra/superpowers | [version] | [date] | no
+subagent-driven-development | obra/superpowers | [version] | [date] | no
+
+# Supporting Skills (Superpowers)
+executing-plans | obra/superpowers | [version] | [date] | no
+verification-before-completion | obra/superpowers | [version] | [date] | no
+requesting-code-review | obra/superpowers | [version] | [date] | no
+receiving-code-review | obra/superpowers | [version] | [date] | no
+dispatching-parallel-agents | obra/superpowers | [version] | [date] | no
+
+---
+
+# Notes
+# - "adapted" means the skill was customized for this project
+# - After adapting a skill, change "no" to "yes" and add notes to the SKILL.md
+# - Update this file when installing or adapting skills

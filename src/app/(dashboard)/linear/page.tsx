@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Header } from "@/components/layout/Header";
-import { CheckSquare, Flag, Layers, Milestone, ExternalLink, AlertCircle } from "lucide-react";
-import { clsx } from "clsx";
+import {
+  CheckSquare,
+  ExternalLink,
+  AlertCircle,
+  X,
+  Check,
+  Loader2,
+  GripVertical,
+} from "lucide-react";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type Issue = {
   id: string;
@@ -11,51 +20,498 @@ type Issue = {
   priority: number;
   identifier: string;
   url: string;
+  stateId: string;
+  stateName: string;
+  stateColor: string;
+  stateType: string;
+  projectName: string | null;
 };
 
-type Project = {
+type WorkflowState = {
   id: string;
   name: string;
-  state: string;
-  url: string;
-  progress: number;
+  color: string;
+  type: string;
 };
 
-type Initiative = {
+type IssueDetail = {
   id: string;
-  name: string;
+  title: string;
   description: string | null;
-};
-
-type MilestoneItem = {
-  id: string;
-  name: string;
-  targetDate: string | null;
-  projectName: string;
+  priority: number;
+  identifier: string;
+  url: string;
+  stateId: string;
+  stateName: string;
+  stateColor: string;
+  stateType: string;
+  projectName: string | null;
+  assigneeName: string | null;
+  assigneeAvatarUrl: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  dueDate: string | null;
+  labels: { id: string; name: string; color: string }[];
 };
 
 type LinearData = {
   issues: Issue[];
-  projects: Project[];
-  initiatives: Initiative[];
-  milestones: MilestoneItem[];
+  states: WorkflowState[];
 };
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const priorityLabel: Record<number, { label: string; color: string }> = {
-  0: { label: "Sem prioridade", color: "text-white/30" },
-  1: { label: "Urgente", color: "text-red-400" },
-  2: { label: "Alta", color: "text-orange-400" },
-  3: { label: "Média", color: "text-yellow-400" },
-  4: { label: "Baixa", color: "text-white/40" },
+  0: { label: "Sem prioridade", color: "var(--text-muted)" },
+  1: { label: "Urgente",        color: "var(--mk-magenta)" },
+  2: { label: "Alta",           color: "var(--mk-orange)"  },
+  3: { label: "Média",          color: "var(--mk-yellow)"  },
+  4: { label: "Baixa",          color: "var(--text-secondary)" },
 };
 
-type Tab = "issues" | "projects" | "initiatives" | "milestones";
+function sortByPriority(a: Issue, b: Issue) {
+  const pa = a.priority === 0 ? 99 : a.priority;
+  const pb = b.priority === 0 ? 99 : b.priority;
+  return pa - pb;
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+type Tab = "issues";
+
+// ─── SectionDivider ───────────────────────────────────────────────────────────
+
+function SectionDivider({ label, count, color }: { label: string; count: number; color?: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0 4px" }}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, color: color ?? "var(--text-muted)",
+        letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap",
+      }}>
+        {label}
+      </span>
+      <span style={{
+        fontSize: 10, color: "var(--text-muted)",
+        background: "var(--bg-card)", border: "1px solid var(--border-card)",
+        padding: "1px 6px", borderRadius: 20, flexShrink: 0,
+      }}>
+        {count}
+      </span>
+      <div style={{ flex: 1, height: 1, background: "var(--border-card)" }} />
+    </div>
+  );
+}
+
+// ─── StatusDropdown ───────────────────────────────────────────────────────────
+
+function StatusDropdown({
+  issue,
+  states,
+  updating,
+  onStatusChange,
+}: {
+  issue: Issue;
+  states: WorkflowState[];
+  updating: boolean;
+  onStatusChange: (issueId: string, state: WorkflowState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        disabled={updating}
+        title={`Status: ${issue.stateName}`}
+        style={{
+          display: "flex", alignItems: "center", gap: 5,
+          padding: "3px 8px", borderRadius: 6,
+          background: "var(--bg-input)", border: "1px solid var(--border-card)",
+          cursor: updating ? "wait" : "pointer",
+          opacity: updating ? 0.6 : 1,
+          transition: "opacity 0.12s",
+        }}
+      >
+        {updating ? (
+          <Loader2 size={8} className="animate-spin" style={{ color: "var(--accent)" }} />
+        ) : (
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: issue.stateColor, display: "inline-block", flexShrink: 0,
+          }} />
+        )}
+        <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          {issue.stateName}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
+          background: "var(--bg-sidebar)", border: "1px solid var(--border-card)",
+          borderRadius: 10, padding: 4, minWidth: 190,
+          boxShadow: "0 8px 40px rgba(0,0,0,0.55)",
+        }}>
+          {states.map((s) => (
+            <button
+              key={s.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusChange(issue.id, s);
+                setOpen(false);
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                width: "100%", padding: "6px 10px", borderRadius: 6,
+                background: s.id === issue.stateId ? "var(--bg-active)" : "transparent",
+                border: "none", cursor: "pointer",
+                color: "var(--text-primary)", fontSize: 12, textAlign: "left",
+              }}
+              onMouseEnter={(e) => {
+                if (s.id !== issue.stateId) e.currentTarget.style.background = "var(--bg-card-hover)";
+              }}
+              onMouseLeave={(e) => {
+                if (s.id !== issue.stateId) e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <span style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: s.color, flexShrink: 0, display: "inline-block",
+              }} />
+              {s.name}
+              {s.id === issue.stateId && (
+                <Check size={11} style={{ marginLeft: "auto", color: "var(--accent)" }} />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── IssueCard ────────────────────────────────────────────────────────────────
+
+function IssueCard({
+  issue, states, updating, onStatusChange, onOpenModal,
+  dragOverId, onDragStart, onDragOver, onDrop,
+}: {
+  issue: Issue; states: WorkflowState[]; updating: boolean;
+  onStatusChange: (issueId: string, state: WorkflowState) => void;
+  onOpenModal: (id: string) => void;
+  dragOverId: string | null;
+  onDragStart: (id: string) => void;
+  onDragOver: (id: string) => void;
+  onDrop: (targetId: string) => void;
+}) {
+  const isDone = issue.stateType === "completed" || issue.stateType === "cancelled";
+  const borderColor = isDone ? "#1488D8" : issue.stateColor;
+  const isOver = dragOverId === issue.id;
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(issue.id); }}
+      onDragOver={(e) => { e.preventDefault(); onDragOver(issue.id); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(issue.id); }}
+      onClick={() => onOpenModal(issue.id)}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 14px",
+        background: isOver ? "var(--bg-card-hover)" : "var(--bg-card)",
+        border: `1px solid ${isOver ? "var(--mk-purple)" : "var(--border-card)"}`,
+        borderLeft: `3px solid ${borderColor}`,
+        borderRadius: 12,
+        cursor: "pointer", transition: "all 0.16s",
+        userSelect: "none",
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.boxShadow = "0 0 0 1px var(--mk-purple-glow)";
+        el.style.background = "var(--bg-card-hover)";
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.boxShadow = "none";
+        el.style.background = isOver ? "var(--bg-card-hover)" : "var(--bg-card)";
+      }}
+    >
+      {/* Drag handle */}
+      <GripVertical size={13} onClick={(e) => e.stopPropagation()} style={{ color: "var(--text-muted)", cursor: "grab", flexShrink: 0, opacity: 0.35, marginRight: 4 }} />
+
+      {/* Left side */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+        <StatusDropdown issue={issue} states={states} updating={updating} onStatusChange={onStatusChange} />
+        <span style={{ color: "var(--text-muted)", fontSize: 11, flexShrink: 0, fontFamily: "monospace" }}>
+          {issue.identifier}
+        </span>
+        <span style={{
+          color: "var(--text-primary)", fontSize: 13,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.65 : 1,
+        }}>
+          {issue.title}
+        </span>
+        {issue.projectName && (
+          <span style={{
+            fontSize: 10, color: "var(--text-muted)",
+            background: "var(--bg-input)", border: "1px solid var(--border-card)",
+            padding: "1px 6px", borderRadius: 4, flexShrink: 0,
+            maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {issue.projectName}
+          </span>
+        )}
+      </div>
+
+      {/* Right side */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 12 }}>
+        <span style={{ fontSize: 11, color: priorityLabel[issue.priority]?.color, flexShrink: 0 }}>
+          {priorityLabel[issue.priority]?.label}
+        </span>
+        <a
+          href={issue.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title="Abrir no Linear"
+          style={{ color: "var(--text-muted)", display: "flex", flexShrink: 0 }}
+        >
+          <ExternalLink size={12} />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── IssueModal ───────────────────────────────────────────────────────────────
+
+function IssueModal({
+  loading,
+  detail,
+  onClose,
+}: {
+  loading: boolean;
+  detail: IssueDetail | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function handleEsc(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "var(--bg-sidebar)", borderRadius: 16,
+          border: "1px solid var(--border-card)",
+          width: "100%", maxWidth: 640, maxHeight: "82vh",
+          overflow: "auto", position: "relative",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute", top: 16, right: 16, zIndex: 10,
+            background: "var(--bg-card)", border: "1px solid var(--border-card)",
+            borderRadius: 8, padding: 6, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "var(--text-muted)",
+          }}
+        >
+          <X size={14} />
+        </button>
+
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 64 }}>
+            <Loader2 size={28} className="animate-spin" style={{ color: "var(--accent)" }} />
+          </div>
+        ) : detail ? (
+          <div style={{ padding: 28 }}>
+            {/* Header */}
+            <div style={{ marginBottom: 20, paddingRight: 32 }}>
+              <span style={{
+                fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace",
+                background: "var(--bg-card)", border: "1px solid var(--border-card)",
+                padding: "2px 8px", borderRadius: 6, display: "inline-block", marginBottom: 10,
+              }}>
+                {detail.identifier}
+              </span>
+              <h2 style={{ color: "var(--text-primary)", fontSize: 18, fontWeight: 700, lineHeight: 1.3 }}>
+                {detail.title}
+              </h2>
+            </div>
+
+            {/* Status bar */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+              padding: "10px 14px", background: "var(--bg-card)",
+              border: "1px solid var(--border-card)", borderRadius: 10, marginBottom: 20,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: "50%",
+                  background: detail.stateColor, display: "inline-block",
+                }} />
+                <span style={{ fontSize: 12, color: "var(--text-primary)" }}>{detail.stateName}</span>
+              </div>
+              <span style={{ color: "var(--border-card)" }}>·</span>
+              <span style={{ fontSize: 12, color: priorityLabel[detail.priority]?.color }}>
+                {priorityLabel[detail.priority]?.label}
+              </span>
+              {detail.projectName && (
+                <>
+                  <span style={{ color: "var(--border-card)" }}>·</span>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{detail.projectName}</span>
+                </>
+              )}
+            </div>
+
+            {/* Description */}
+            {detail.description ? (
+              <div style={{ marginBottom: 20 }}>
+                <p style={{
+                  fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
+                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8,
+                }}>
+                  Descrição
+                </p>
+                <div style={{
+                  fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.65,
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  background: "var(--bg-card)", border: "1px solid var(--border-card)",
+                  borderRadius: 10, padding: "12px 14px",
+                }}>
+                  {detail.description}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  padding: "12px 14px", background: "var(--bg-card)",
+                  border: "1px solid var(--border-card)", borderRadius: 10,
+                }}>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic" }}>
+                    Sem descrição.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Details grid */}
+            <div style={{
+              borderTop: "1px solid var(--border-card)", paddingTop: 16, marginBottom: 20,
+              display: "flex", flexDirection: "column", gap: 10,
+            }}>
+              {detail.assigneeName && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Atribuído a</span>
+                  <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{detail.assigneeName}</span>
+                </div>
+              )}
+              {detail.labels.length > 0 && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Labels</span>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {detail.labels.map((l) => (
+                      <span
+                        key={l.id}
+                        style={{
+                          fontSize: 11, padding: "2px 8px", borderRadius: 20,
+                          background: l.color + "22", border: `1px solid ${l.color}66`,
+                          color: l.color,
+                        }}
+                      >
+                        {l.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {detail.dueDate && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Vencimento</span>
+                  <span style={{ fontSize: 13, color: "var(--mk-orange)" }}>
+                    {fmtDate(detail.dueDate)}
+                  </span>
+                </div>
+              )}
+              {detail.createdAt && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Criado em</span>
+                  <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(detail.createdAt)}</span>
+                </div>
+              )}
+              {detail.updatedAt && (
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Atualizado</span>
+                  <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(detail.updatedAt)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 16 }}>
+              <a
+                href={detail.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                  background: "var(--mk-purple)", color: "#fff",
+                  textDecoration: "none", transition: "opacity 0.12s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                Abrir no Linear
+                <ExternalLink size={13} />
+              </a>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LinearPage() {
   const [data, setData] = useState<LinearData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("issues");
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDetail, setModalDetail] = useState<IssueDetail | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/linear")
@@ -68,182 +524,264 @@ export default function LinearPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function handleStatusChange(issueId: string, newState: WorkflowState) {
+    if (!data) return;
+    const prevIssues = data.issues;
+
+    // Optimistic update
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            issues: prev.issues.map((i) =>
+              i.id === issueId
+                ? { ...i, stateId: newState.id, stateName: newState.name, stateColor: newState.color, stateType: newState.type }
+                : i
+            ),
+          }
+        : null
+    );
+
+    setUpdatingStatus(issueId);
+    try {
+      const res = await fetch("/api/linear", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issueId, stateId: newState.id }),
+      });
+      if (!res.ok) throw new Error("Falha ao atualizar status");
+    } catch {
+      // Revert on failure
+      setData((prev) => (prev ? { ...prev, issues: prevIssues } : null));
+    } finally {
+      setUpdatingStatus(null);
+    }
+  }
+
+  async function openModal(issueId: string) {
+    setModalOpen(true);
+    setModalDetail(null);
+    setModalLoading(true);
+    try {
+      const res = await fetch(`/api/linear?issueId=${issueId}`);
+      const d = await res.json();
+      setModalDetail(d);
+    } finally {
+      setModalLoading(false);
+    }
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setModalDetail(null);
+  }
+
+  // Drag state
+  const [issueOrder, setIssueOrder] = useState<string[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  function handleDrop(targetId: string, sectionIssues: Issue[]) {
+    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+    const current = issueOrder.length > 0 ? issueOrder : sectionIssues.map((i) => i.id);
+    const from = current.indexOf(dragId);
+    const to = current.indexOf(targetId);
+    if (from < 0 || to < 0) { setDragId(null); setDragOverId(null); return; }
+    const next = [...current];
+    next.splice(from, 1);
+    next.splice(to, 0, dragId);
+    setIssueOrder(next);
+    setDragId(null);
+    setDragOverId(null);
+  }
+
+  function applyOrder(issues: Issue[]): Issue[] {
+    if (issueOrder.length === 0) return issues;
+    const map = new Map(issueOrder.map((id, idx) => [id, idx]));
+    return [...issues].sort((a, b) => {
+      const ai = map.has(a.id) ? map.get(a.id)! : Number.MAX_SAFE_INTEGER;
+      const bi = map.has(b.id) ? map.get(b.id)! : Number.MAX_SAFE_INTEGER;
+      return ai - bi;
+    });
+  }
+
   const tabs: { key: Tab; label: string; icon: typeof CheckSquare; count?: number }[] = [
-    { key: "issues", label: "Tasks", icon: CheckSquare, count: data?.issues.length },
-    { key: "projects", label: "Projetos", icon: Layers, count: data?.projects.length },
-    { key: "initiatives", label: "Iniciativas", icon: Flag, count: data?.initiatives.length },
-    { key: "milestones", label: "Milestones", icon: Milestone, count: data?.milestones.length },
+    { key: "issues", label: "Tasks", icon: CheckSquare, count: data?.issues.filter((i) => i.stateType !== "completed" && i.stateType !== "cancelled").length },
   ];
+
+  // Grouped + sorted issues
+  const activeIssues = (data?.issues ?? []).filter((i) => i.stateType !== "completed" && i.stateType !== "cancelled");
+  const startedIssues   = applyOrder(activeIssues.filter((i) => i.stateType === "started").sort(sortByPriority));
+  const unstartedIssues = applyOrder(activeIssues.filter((i) => i.stateType !== "started").sort(sortByPriority));
+  const doneIssues      = (data?.issues ?? []).filter((i) => i.stateType === "completed" || i.stateType === "cancelled");
+  const states = data?.states ?? [];
 
   return (
     <div className="flex flex-col flex-1">
-      <Header title="Linear" subtitle="Tasks, Projetos, Iniciativas e Milestones" />
+      <Header title="Linear" subtitle="Minhas Tasks" />
 
       <div className="flex-1 p-6 space-y-4">
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-white/10 pb-1">
-          {tabs.map(({ key, label, icon: Icon, count }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={clsx(
-                "flex items-center gap-2 px-4 py-2 text-sm transition-colors",
-                tab === key
-                  ? "text-violet-400 border-b-2 border-violet-400"
-                  : "text-white/40 hover:text-white"
-              )}
-            >
-              <Icon size={14} />
-              {label}
-              {count !== undefined && (
-                <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded-full">
-                  {count}
-                </span>
-              )}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
+          {tabs.map(({ key, label, icon: Icon, count }) => {
+            const active = tab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", borderRadius: 8, fontSize: 13,
+                  border: "1px solid",
+                  borderColor: active ? "var(--glass-border)" : "transparent",
+                  background: active ? "var(--bg-active)" : "transparent",
+                  backdropFilter: active ? "blur(12px) saturate(160%)" : "none",
+                  WebkitBackdropFilter: active ? "blur(12px) saturate(160%)" : "none",
+                  color: active ? "var(--accent)" : "var(--text-muted)",
+                  fontWeight: active ? 600 : 400,
+                  boxShadow: active ? "inset 0 0 12px var(--mk-purple-glow)" : "none",
+                  cursor: "pointer",
+                  transition: "all 0.16s cubic-bezier(0.4, 0, 0.2, 1)",
+                  marginBottom: active ? -1 : 0,
+                }}
+              >
+                <Icon size={14} />
+                {label}
+                {count !== undefined && (
+                  <span style={{
+                    fontSize: 11, background: "var(--bg-card)",
+                    border: "1px solid var(--border-card)",
+                    color: "var(--text-muted)", padding: "1px 6px", borderRadius: 20,
+                  }}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-            <AlertCircle size={16} className="text-red-400 shrink-0" />
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            background: "rgba(229,19,142,0.08)", border: "1px solid rgba(229,19,142,0.20)",
+            borderRadius: 12, padding: "12px 16px",
+          }}>
+            <AlertCircle size={16} style={{ color: "var(--mk-magenta)", flexShrink: 0 }} />
             <div>
-              <p className="text-red-300 text-sm">{error}</p>
-              {error.includes("LINEAR_API_KEY") || error.includes("not set") ? (
-                <p className="text-red-400/60 text-xs mt-1">
-                  Adicione <code className="bg-black/30 px-1 rounded">LINEAR_API_KEY=lin_api_...</code> no arquivo <code className="bg-black/30 px-1 rounded">.env.local</code>
+              <p style={{ color: "var(--mk-magenta)", fontSize: 13 }}>{error}</p>
+              {(error.includes("LINEAR_API_KEY") || error.includes("not set")) && (
+                <p style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 4 }}>
+                  Adicione{" "}
+                  <code style={{ background: "var(--bg-card)", padding: "1px 4px", borderRadius: 4 }}>
+                    LINEAR_API_KEY=lin_api_...
+                  </code>{" "}
+                  no arquivo{" "}
+                  <code style={{ background: "var(--bg-card)", padding: "1px 4px", borderRadius: 4 }}>
+                    .env.local
+                  </code>
                 </p>
-              ) : null}
+              )}
             </div>
           </div>
         )}
 
         {/* Loading skeleton */}
         {loading && (
-          <div className="space-y-3">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-14 bg-white/5 rounded-xl animate-pulse" />
+              <div key={i} style={{ height: 48, background: "var(--bg-card)", borderRadius: 12, animation: "pulse 1.5s infinite" }} />
             ))}
           </div>
         )}
 
-        {/* Issues */}
+        {/* ── Issues tab ────────────────────────────────────────────── */}
         {!loading && tab === "issues" && data && (
-          <div className="space-y-2">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {data.issues.length === 0 && (
-              <p className="text-white/30 text-sm text-center py-8">Nenhuma task atribuída a você.</p>
+              <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: "32px 0" }}>
+                Nenhuma task atribuída a você.
+              </p>
             )}
-            {data.issues.map((issue) => (
-              <a
-                key={issue.id}
-                href={issue.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:border-violet-500/40 transition-colors group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-white/30 text-xs shrink-0 font-mono">{issue.identifier}</span>
-                  <span className="text-white/80 text-sm truncate">{issue.title}</span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={clsx("text-xs", priorityLabel[issue.priority]?.color)}>
-                    {priorityLabel[issue.priority]?.label}
-                  </span>
-                  <ExternalLink size={12} className="text-white/20 group-hover:text-white/50 transition-colors" />
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
 
-        {/* Projects */}
-        {!loading && tab === "projects" && data && (
-          <div className="space-y-2">
-            {data.projects.length === 0 && (
-              <p className="text-white/30 text-sm text-center py-8">Nenhum projeto encontrado.</p>
-            )}
-            {data.projects.map((project) => (
-              <a
-                key={project.id}
-                href={project.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:border-violet-500/40 transition-colors group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Layers size={14} className="text-violet-400 shrink-0" />
-                  <span className="text-white/80 text-sm truncate">{project.name}</span>
-                  <span className="text-white/20 text-xs shrink-0">{project.state}</span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-violet-500 rounded-full"
-                      style={{ width: `${Math.round((project.progress ?? 0) * 100)}%` }}
+            {/* In Progress */}
+            {startedIssues.length > 0 && (
+              <>
+                <SectionDivider label="Em Andamento" count={startedIssues.length} color="var(--mk-green)" />
+                <div onDragLeave={() => setDragOverId(null)} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {startedIssues.map((issue) => (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      states={states}
+                      updating={updatingStatus === issue.id}
+                      onStatusChange={handleStatusChange}
+                      onOpenModal={openModal}
+                      dragOverId={dragOverId}
+                      onDragStart={setDragId}
+                      onDragOver={setDragOverId}
+                      onDrop={(targetId) => handleDrop(targetId, startedIssues)}
                     />
-                  </div>
-                  <span className="text-white/30 text-xs w-8 text-right">
-                    {Math.round((project.progress ?? 0) * 100)}%
-                  </span>
-                  <ExternalLink size={12} className="text-white/20 group-hover:text-white/50 transition-colors" />
+                  ))}
                 </div>
-              </a>
-            ))}
+              </>
+            )}
+
+            {/* To Do / In Analysis */}
+            {unstartedIssues.length > 0 && (
+              <>
+                <SectionDivider label="Em Análise / A Fazer" count={unstartedIssues.length} />
+                <div onDragLeave={() => setDragOverId(null)} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {unstartedIssues.map((issue) => (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      states={states}
+                      updating={updatingStatus === issue.id}
+                      onStatusChange={handleStatusChange}
+                      onOpenModal={openModal}
+                      dragOverId={dragOverId}
+                      onDragStart={setDragId}
+                      onDragOver={setDragOverId}
+                      onDrop={(targetId) => handleDrop(targetId, unstartedIssues)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Done */}
+            {doneIssues.length > 0 && (
+              <>
+                <SectionDivider label="Concluídas" count={doneIssues.length} color="var(--mk-blue)" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {doneIssues.map((issue) => (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      states={states}
+                      updating={updatingStatus === issue.id}
+                      onStatusChange={handleStatusChange}
+                      onOpenModal={openModal}
+                      dragOverId={null}
+                      onDragStart={() => {}}
+                      onDragOver={() => {}}
+                      onDrop={() => {}}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* Initiatives */}
-        {!loading && tab === "initiatives" && data && (
-          <div className="space-y-2">
-            {data.initiatives.length === 0 && (
-              <p className="text-white/30 text-sm text-center py-8">Nenhuma iniciativa encontrada.</p>
-            )}
-            {data.initiatives.map((init) => (
-              <div
-                key={init.id}
-                className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  <Flag size={14} className="text-violet-400 shrink-0" />
-                  <span className="text-white/80 text-sm">{init.name}</span>
-                </div>
-                {init.description && (
-                  <p className="text-white/30 text-xs mt-1 ml-5 line-clamp-2">{init.description}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Milestones */}
-        {!loading && tab === "milestones" && data && (
-          <div className="space-y-2">
-            {data.milestones.length === 0 && (
-              <p className="text-white/30 text-sm text-center py-8">Nenhum milestone encontrado.</p>
-            )}
-            {data.milestones.map((m) => (
-              <div
-                key={m.id}
-                className="flex items-center justify-between px-4 py-3 bg-white/5 border border-white/10 rounded-xl"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Milestone size={14} className="text-violet-400 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-white/80 text-sm truncate">{m.name}</p>
-                    <p className="text-white/30 text-xs">{m.projectName}</p>
-                  </div>
-                </div>
-                {m.targetDate && (
-                  <span className="text-white/40 text-xs shrink-0">
-                    {new Date(m.targetDate).toLocaleDateString("pt-BR")}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* ── Modal ───────────────────────────────────────────────────── */}
+      {modalOpen && (
+        <IssueModal loading={modalLoading} detail={modalDetail} onClose={closeModal} />
+      )}
     </div>
   );
 }

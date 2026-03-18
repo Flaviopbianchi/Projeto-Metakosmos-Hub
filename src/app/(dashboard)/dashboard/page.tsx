@@ -29,12 +29,13 @@ type EmailDetail = {
   from: string; to: string; date: string; messageId: string;
   body: string; bodyHtml: string | null; isUnread: boolean;
 };
-type WorkflowState = { id: string; name: string; color: string; type: string };
+type WorkflowState = { id: string; name: string; color: string; type: string; teamId?: string };
 
 type LinearIssue = {
   id: string; title: string; priority: number;
   stateId: string; stateName: string; stateColor: string; stateType: string;
   url: string; identifier: string; projectName: string | null;
+  teamId?: string;
 };
 
 type IssueDetail = {
@@ -1893,7 +1894,11 @@ export default function DashboardPage() {
       setDoneIssueIds((s) => new Set([...s, issue.id]));
       return;
     }
-    const doneState = linearStates.find((s) => s.type === "completed");
+    // Filtra estados pelo time do issue para evitar stateId de outro time
+    const teamStates = issue.teamId
+      ? linearStates.filter((s) => s.teamId === issue.teamId)
+      : linearStates;
+    const doneState = teamStates.find((s) => s.type === "completed") ?? linearStates.find((s) => s.type === "completed");
     if (!doneState) { setDoneIssueIds((s) => new Set([...s, issue.id])); return; }
     await handleIssueStatusChange(issue.id, doneState);
   }

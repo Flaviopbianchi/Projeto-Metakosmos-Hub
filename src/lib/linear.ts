@@ -28,7 +28,7 @@ async function _getMyIssues() {
   });
   const resolved = await Promise.all(
     issues.nodes.map(async (i) => {
-      const [state, project] = await Promise.all([i.state, i.project]);
+      const [state, project, team] = await Promise.all([i.state, i.project, i.team]);
       return {
         id: i.id,
         title: i.title,
@@ -40,6 +40,7 @@ async function _getMyIssues() {
         url: i.url,
         identifier: i.identifier,
         projectName: project?.name ?? null,
+        teamId: team?.id ?? undefined,
       };
     })
   );
@@ -53,12 +54,18 @@ export function getMyIssues() {
 async function _getWorkflowStates() {
   const client = getLinearClient();
   const states = await client.workflowStates({ first: 100 });
-  return states.nodes.map((s) => ({
-    id: s.id,
-    name: s.name,
-    color: s.color,
-    type: s.type as string,
-  }));
+  return Promise.all(
+    states.nodes.map(async (s) => {
+      const team = await s.team;
+      return {
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        type: s.type as string,
+        teamId: team?.id ?? undefined,
+      };
+    })
+  );
 }
 
 export function getWorkflowStates() {

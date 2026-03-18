@@ -28,7 +28,7 @@ async function _getMyIssues() {
   });
   const resolved = await Promise.all(
     issues.nodes.map(async (i) => {
-      const [state, project, team] = await Promise.all([i.state, i.project, i.team]);
+      const [state, project, team, cycle] = await Promise.all([i.state, i.project, i.team, i.cycle]);
       return {
         id: i.id,
         title: i.title,
@@ -41,6 +41,8 @@ async function _getMyIssues() {
         identifier: i.identifier,
         projectName: project?.name ?? null,
         teamId: team?.id ?? undefined,
+        cycleName: cycle?.name ?? null,
+        cycleNumber: cycle?.number ?? null,
       };
     })
   );
@@ -167,4 +169,45 @@ async function _getMilestones() {
 
 export function getMilestones() {
   return cached("milestones", _getMilestones);
+}
+
+async function _getCompletedThisWeek() {
+  const client = getLinearClient();
+  const me = await client.viewer;
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  // Segunda-feira da semana atual (BR)
+  const day = startOfWeek.getDay();
+  startOfWeek.setDate(startOfWeek.getDate() - (day === 0 ? 6 : day - 1));
+
+  const issues = await me.assignedIssues({
+    filter: { completedAt: { gte: startOfWeek.toISOString() } },
+    orderBy: "updatedAt" as never,
+  });
+  const resolved = await Promise.all(
+    issues.nodes.map(async (i) => {
+      const [state, project, team, cycle] = await Promise.all([i.state, i.project, i.team, i.cycle]);
+      return {
+        id: i.id,
+        title: i.title,
+        priority: i.priority,
+        stateId: state?.id ?? "",
+        stateName: state?.name ?? "Done",
+        stateColor: state?.color ?? "#16a34a",
+        stateType: (state?.type ?? "completed") as string,
+        url: i.url,
+        identifier: i.identifier,
+        projectName: project?.name ?? null,
+        teamId: team?.id ?? undefined,
+        cycleName: cycle?.name ?? null,
+        cycleNumber: cycle?.number ?? null,
+        completedAt: i.completedAt?.toISOString() ?? null,
+      };
+    })
+  );
+  return resolved;
+}
+
+export function getCompletedThisWeek() {
+  return cached("completedThisWeek", _getCompletedThisWeek);
 }

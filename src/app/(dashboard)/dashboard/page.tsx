@@ -36,6 +36,8 @@ type LinearIssue = {
   stateId: string; stateName: string; stateColor: string; stateType: string;
   url: string; identifier: string; projectName: string | null;
   teamId?: string;
+  cycleName?: string | null; cycleNumber?: number | null;
+  completedAt?: string | null;
 };
 
 type IssueDetail = {
@@ -54,6 +56,7 @@ type DashboardData = {
   calendarEvents: CalendarEvent[];
   gmailMessages: EmailMessage[];
   linearIssues: LinearIssue[];
+  completedThisWeek: LinearIssue[];
   goldenPizzaMessages: SlackMessage[];
   woowMessages: WoowMessage[];
   mentions: MentionMessage[];
@@ -324,6 +327,20 @@ function StatusDot({
     document.addEventListener("mousedown", outside);
     return () => document.removeEventListener("mousedown", outside);
   }, [open]);
+
+  const teamStates = issue.teamId ? states.filter(s => !s.teamId || s.teamId === issue.teamId) : states;
+  const canonicalStates: WorkflowState[] = [];
+  const csBacklog = teamStates.find(s => s.type === "backlog" || s.type === "triage");
+  const csTodo = teamStates.find(s => s.type === "unstarted");
+  const csInProg = teamStates.find(s => s.type === "started" && !/review/i.test(s.name));
+  const csInRev = teamStates.find(s => s.type === "started" && /review/i.test(s.name));
+  const csDone = teamStates.find(s => s.type === "completed");
+  if (csBacklog) canonicalStates.push(csBacklog);
+  if (csTodo) canonicalStates.push(csTodo);
+  if (csInProg) canonicalStates.push(csInProg);
+  if (csInRev) canonicalStates.push(csInRev);
+  if (csDone) canonicalStates.push(csDone);
+
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button
@@ -340,14 +357,14 @@ function StatusDot({
           : <span style={{ width: 9, height: 9, borderRadius: "50%", background: issue.stateColor, display: "inline-block" }} />
         }
       </button>
-      {open && states.length > 0 && (
+      {open && canonicalStates.length > 0 && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 400,
           background: "var(--bg-sidebar)", border: "1px solid var(--border-card)",
           borderRadius: 10, padding: 4, minWidth: 180,
           boxShadow: "0 8px 40px rgba(0,0,0,0.55)",
         }}>
-          {states.map((s) => (
+          {canonicalStates.map((s) => (
             <button
               key={s.id}
               onClick={(e) => { e.stopPropagation(); onStatusChange(issue.id, s); setOpen(false); }}
@@ -419,6 +436,15 @@ function IssueCard({
       <span style={{ fontFamily: "monospace", fontSize: 9, color: "var(--text-muted)", flexShrink: 0 }}>
         {issue.identifier}
       </span>
+      {(issue.cycleName || issue.cycleNumber) ? (
+        <span style={{
+          fontFamily: "monospace", fontSize: 9, color: "var(--mk-purple)",
+          background: "rgba(123,47,222,0.12)", border: "1px solid rgba(123,47,222,0.2)",
+          borderRadius: 4, padding: "1px 4px", flexShrink: 0, whiteSpace: "nowrap",
+        }}>
+          ⚡ {issue.cycleName ?? `C${issue.cycleNumber}`}
+        </span>
+      ) : null}
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         <div style={{
           fontFamily: font, fontSize: compact ? 11 : 12, fontWeight: 500,
@@ -1804,6 +1830,7 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showTasksModal, setShowTasksModal] = useState(false);
+  const [showDoneThisWeek, setShowDoneThisWeek] = useState(false);
   const [showPastMeetingsModal, setShowPastMeetingsModal] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<CalendarEvent | null>(null);
   const [importantEventIds, setImportantEventIds] = useState<Set<string>>(() => {
@@ -2046,6 +2073,7 @@ export default function DashboardPage() {
   const doneIssues   = allIssues.filter((i) => doneIssueIds.has(i.id) || i.stateType === "completed" || i.stateType === "cancelled");
   const inProgress = activeIssues.filter((i) => i.stateType === "started");
   const todo       = activeIssues.filter((i) => i.stateType === "unstarted" || i.stateType === "backlog" || i.stateType === "triage");
+  const completedThisWeek = data?.completedThisWeek ?? [];
 
   function applyOrder(issues: LinearIssue[]): LinearIssue[] {
     if (issueOrder.length === 0) return issues;
@@ -2490,136 +2518,198 @@ export default function DashboardPage() {
           <Card>
             <SectionHeader
               icon="checkmark-circle-outline"
-              title="Minhas tasks"
-              count={activeIssues.length}
+              title={showDoneThisWeek ? "Concluídas esta semana" : "Minhas tasks"}
+              count={showDoneThisWeek ? completedThisWeek.length : activeIssues.length}
               color="#7B2FDE"
               action={
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <SortDropdown value={taskSort} onChange={(v) => { setTaskSort(v); setIssueOrder([]); }} />
+                showDoneThisWeek ? (
                   <button
-                    onClick={() => setShowTasksModal(true)}
+                    onClick={() => setShowDoneThisWeek(false)}
                     style={{
                       display: "flex", alignItems: "center", gap: 4,
                       fontFamily: font, fontSize: 11, fontWeight: 600,
-                      color: "var(--mk-purple)",
-                      background: "rgba(123,47,222,0.12)",
-                      border: "1px solid rgba(123,47,222,0.25)",
+                      color: "var(--text-muted)",
+                      background: "transparent",
+                      border: "1px solid var(--border-card)",
                       borderRadius: 7, padding: "4px 9px",
-                      cursor: "pointer", transition: "all .15s",
+                      cursor: "pointer",
                     }}
                   >
-                    <LayoutGrid size={11} />
-                    Ver todas
+                    ← Voltar
                   </button>
-                </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <SortDropdown value={taskSort} onChange={(v) => { setTaskSort(v); setIssueOrder([]); }} />
+                    <button
+                      onClick={() => setShowTasksModal(true)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        fontFamily: font, fontSize: 11, fontWeight: 600,
+                        color: "var(--mk-purple)",
+                        background: "rgba(123,47,222,0.12)",
+                        border: "1px solid rgba(123,47,222,0.25)",
+                        borderRadius: 7, padding: "4px 9px",
+                        cursor: "pointer", transition: "all .15s",
+                      }}
+                    >
+                      <LayoutGrid size={11} />
+                      Ver todas
+                    </button>
+                  </div>
+                )
               }
             />
 
-            {/* Em andamento */}
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-purple)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, marginTop: 0, filter: "brightness(1.3)" }}>
-                🔄 Em andamento · {loading ? "—" : inProgress.length}
-              </p>
-              {loading ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
-                </div>
-              ) : inProgress.length === 0 ? (
-                <EmptyState text="Nenhuma em andamento." />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }} onDragLeave={() => setDashDragOverId(null)}>
-                  {sortedInProgress.slice(0, 4).map((issue) => (
-                    <IssueCard
-                      key={issue.id} issue={issue} compact
-                      states={linearStates} updatingId={updatingIssueId}
-                      onStatusChange={handleIssueStatusChange}
-                      onOpenModal={openIssueModal}
-                      onMarkDone={handleMarkDone}
-                      dragOverId={dashDragOverId}
-                      onDragStart={setDashDragId}
-                      onDragOver={setDashDragOverId}
-                      onDrop={(targetId) => handleDashDrop(targetId, activeIssues)}
-                    />
-                  ))}
-                  {inProgress.length > 4 && (
-                    <button
-                      onClick={() => setShowTasksModal(true)}
-                      style={{ fontFamily: font, fontSize: 10, color: "var(--mk-purple)", padding: "4px 2px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
-                    >
-                      +{inProgress.length - 4} mais →
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* A fazer */}
-            <div style={{ marginBottom: doneIssues.length > 0 ? 12 : 0 }}>
-              <p style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, marginTop: 0 }}>
-                📋 A fazer · {loading ? "—" : todo.length}
-              </p>
-              {loading ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
-                </div>
-              ) : todo.length === 0 ? (
-                <EmptyState text="Nenhuma pendente." />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }} onDragLeave={() => setDashDragOverId(null)}>
-                  {sortedTodo.slice(0, 4).map((issue) => (
-                    <IssueCard
-                      key={issue.id} issue={issue} compact
-                      states={linearStates} updatingId={updatingIssueId}
-                      onStatusChange={handleIssueStatusChange}
-                      onOpenModal={openIssueModal}
-                      onMarkDone={handleMarkDone}
-                      dragOverId={dashDragOverId}
-                      onDragStart={setDashDragId}
-                      onDragOver={setDashDragOverId}
-                      onDrop={(targetId) => handleDashDrop(targetId, activeIssues)}
-                    />
-                  ))}
-                  {todo.length > 4 && (
-                    <button
-                      onClick={() => setShowTasksModal(true)}
-                      style={{ fontFamily: font, fontSize: 10, color: "var(--text-muted)", padding: "4px 2px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
-                    >
-                      +{todo.length - 4} mais →
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Concluídas */}
-            {doneIssues.length > 0 && (
+            {showDoneThisWeek ? (
+              /* ── Vista: Concluídas esta semana ── */
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, paddingTop: 8, borderTop: "1px solid var(--border-card)" }}>
-                  <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-blue)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                    ✅ Concluídas
-                  </span>
-                  <span style={{
-                    fontSize: 10, color: "var(--text-muted)",
-                    background: "rgba(20,136,216,0.12)", border: "1px solid rgba(20,136,216,0.25)",
-                    padding: "1px 6px", borderRadius: 20,
-                  }}>
-                    {doneIssues.length}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {doneIssues.map((issue) => (
-                    <IssueCard
-                      key={issue.id} issue={issue} compact
-                      states={linearStates} updatingId={updatingIssueId}
-                      onStatusChange={handleIssueStatusChange}
-                      onOpenModal={openIssueModal}
-                      onMarkDone={handleMarkDone}
-                      dragOverId={null}
-                      onDragStart={() => {}} onDragOver={() => {}} onDrop={() => {}}
-                    />
-                  ))}
-                </div>
+                {loading ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {[0, 1, 2].map((i) => <Skeleton key={i} height={40} />)}
+                  </div>
+                ) : completedThisWeek.length === 0 ? (
+                  <EmptyState text="Nenhuma task concluída esta semana." />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {completedThisWeek.map((issue) => (
+                      <IssueCard
+                        key={issue.id} issue={issue} compact
+                        states={linearStates} updatingId={updatingIssueId}
+                        onStatusChange={handleIssueStatusChange}
+                        onOpenModal={openIssueModal}
+                        onMarkDone={handleMarkDone}
+                        dragOverId={null}
+                        onDragStart={() => {}} onDragOver={() => {}} onDrop={() => {}}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
+            ) : (
+              /* ── Vista: Em andamento + A fazer + Concluídas ── */
+              <>
+                {/* Em andamento */}
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-purple)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, marginTop: 0, filter: "brightness(1.3)" }}>
+                    🔄 Em andamento · {loading ? "—" : inProgress.length}
+                  </p>
+                  {loading ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
+                    </div>
+                  ) : inProgress.length === 0 ? (
+                    <EmptyState text="Nenhuma em andamento." />
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }} onDragLeave={() => setDashDragOverId(null)}>
+                      {sortedInProgress.slice(0, 4).map((issue) => (
+                        <IssueCard
+                          key={issue.id} issue={issue} compact
+                          states={linearStates} updatingId={updatingIssueId}
+                          onStatusChange={handleIssueStatusChange}
+                          onOpenModal={openIssueModal}
+                          onMarkDone={handleMarkDone}
+                          dragOverId={dashDragOverId}
+                          onDragStart={setDashDragId}
+                          onDragOver={setDashDragOverId}
+                          onDrop={(targetId) => handleDashDrop(targetId, activeIssues)}
+                        />
+                      ))}
+                      {inProgress.length > 4 && (
+                        <button
+                          onClick={() => setShowTasksModal(true)}
+                          style={{ fontFamily: font, fontSize: 10, color: "var(--mk-purple)", padding: "4px 2px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                        >
+                          +{inProgress.length - 4} mais →
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* A fazer */}
+                <div style={{ marginBottom: doneIssues.length > 0 ? 12 : 0 }}>
+                  <p style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, marginTop: 0 }}>
+                    📋 A fazer · {loading ? "—" : todo.length}
+                  </p>
+                  {loading ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
+                    </div>
+                  ) : todo.length === 0 ? (
+                    <EmptyState text="Nenhuma pendente." />
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }} onDragLeave={() => setDashDragOverId(null)}>
+                      {sortedTodo.slice(0, 4).map((issue) => (
+                        <IssueCard
+                          key={issue.id} issue={issue} compact
+                          states={linearStates} updatingId={updatingIssueId}
+                          onStatusChange={handleIssueStatusChange}
+                          onOpenModal={openIssueModal}
+                          onMarkDone={handleMarkDone}
+                          dragOverId={dashDragOverId}
+                          onDragStart={setDashDragId}
+                          onDragOver={setDashDragOverId}
+                          onDrop={(targetId) => handleDashDrop(targetId, activeIssues)}
+                        />
+                      ))}
+                      {todo.length > 4 && (
+                        <button
+                          onClick={() => setShowTasksModal(true)}
+                          style={{ fontFamily: font, fontSize: 10, color: "var(--text-muted)", padding: "4px 2px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                        >
+                          +{todo.length - 4} mais →
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Concluídas (sessão marcadas como done nesta sessão) */}
+                {doneIssues.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, paddingTop: 8, borderTop: "1px solid var(--border-card)" }}>
+                      <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-blue)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                        ✅ Concluídas
+                      </span>
+                      <span style={{
+                        fontSize: 10, color: "var(--text-muted)",
+                        background: "rgba(20,136,216,0.12)", border: "1px solid rgba(20,136,216,0.25)",
+                        padding: "1px 6px", borderRadius: 20,
+                      }}>
+                        {doneIssues.length}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {doneIssues.map((issue) => (
+                        <IssueCard
+                          key={issue.id} issue={issue} compact
+                          states={linearStates} updatingId={updatingIssueId}
+                          onStatusChange={handleIssueStatusChange}
+                          onOpenModal={openIssueModal}
+                          onMarkDone={handleMarkDone}
+                          dragOverId={null}
+                          onDragStart={() => {}} onDragOver={() => {}} onDrop={() => {}}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rodapé: botão "Ver concluídas esta semana" */}
+                <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid var(--border-card)" }}>
+                  <button
+                    onClick={() => setShowDoneThisWeek(true)}
+                    style={{
+                      width: "100%", padding: "7px", borderRadius: 8,
+                      background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.2)",
+                      color: "var(--mk-green-text, #16a34a)", fontFamily: font, fontSize: 11, fontWeight: 600,
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                    }}
+                  >
+                    ✅ Ver concluídas esta semana · {completedThisWeek.length}
+                  </button>
+                </div>
+              </>
             )}
           </Card>
         </div>

@@ -57,6 +57,7 @@ type DashboardData = {
   gmailMessages: EmailMessage[];
   linearIssues: LinearIssue[];
   completedThisWeek: LinearIssue[];
+  completedThisMonth: LinearIssue[];
   goldenPizzaMessages: SlackMessage[];
   woowMessages: WoowMessage[];
   mentions: MentionMessage[];
@@ -292,8 +293,8 @@ function SortDropdown({ value, onChange }: { value: SortKey; onChange: (v: SortK
               style={{
                 display: "block", width: "100%", textAlign: "left",
                 fontFamily: font, fontSize: 12, fontWeight: opt.value === value ? 700 : 400,
-                color: opt.value === value ? "var(--mk-purple)" : "var(--text-secondary)",
-                background: opt.value === value ? "rgba(123,47,222,0.1)" : "transparent",
+                color: opt.value === value ? "var(--accent)" : "var(--text-secondary)",
+                background: opt.value === value ? "rgba(20,136,216,0.1)" : "transparent",
                 border: "none", padding: "8px 12px", cursor: "pointer",
                 transition: "background .1s",
               }}
@@ -421,7 +422,7 @@ function IssueCard({
         padding: compact ? "5px 7px 5px 8px" : "8px 10px 8px 10px",
         borderRadius: 8,
         background: isOver ? "var(--bg-card-hover)" : "var(--bg-active)",
-        border: `1px solid ${isOver ? "var(--mk-purple)" : "var(--border-card)"}`,
+        border: `1px solid ${isOver ? "var(--accent)" : "var(--border-card)"}`,
         borderLeft: `3px solid ${borderColor}`,
         cursor: "pointer", transition: "background .1s, border-color .1s",
         userSelect: "none",
@@ -438,8 +439,8 @@ function IssueCard({
       </span>
       {(issue.cycleName || issue.cycleNumber) ? (
         <span style={{
-          fontFamily: "monospace", fontSize: 9, color: "var(--mk-purple)",
-          background: "rgba(123,47,222,0.12)", border: "1px solid rgba(123,47,222,0.2)",
+          fontFamily: "monospace", fontSize: 9, color: "var(--accent)",
+          background: "rgba(20,136,216,0.12)", border: "1px solid rgba(20,136,216,0.2)",
           borderRadius: 4, padding: "1px 4px", flexShrink: 0, whiteSpace: "nowrap",
         }}>
           ⚡ {issue.cycleName ?? `C${issue.cycleNumber}`}
@@ -549,7 +550,7 @@ function TasksModal({
 
   const columns = [
     { key: "todo",   label: "📋 A Fazer",      color: "var(--text-secondary)", items: todo },
-    { key: "inprog", label: "🔄 Em Andamento", color: "var(--mk-purple)",      items: inProg },
+    { key: "inprog", label: "🔄 Em Andamento", color: "var(--accent)",      items: inProg },
     { key: "review", label: "🔍 Em Revisão",   color: "var(--mk-blue)",        items: inReview },
   ];
 
@@ -587,13 +588,13 @@ function TasksModal({
           borderBottom: "1px solid var(--border-card)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <CheckSquare size={16} color="var(--mk-purple)" />
+            <CheckSquare size={16} color="var(--accent)" />
             <span style={{ fontFamily: font, fontWeight: 700, fontSize: 15, color: "var(--text-primary)" }}>
               Todas as tasks
             </span>
             <span style={{
               fontFamily: font, fontSize: 11, fontWeight: 600,
-              background: "rgba(123,47,222,0.15)", color: "var(--mk-purple)",
+              background: "rgba(20,136,216,0.15)", color: "var(--accent)",
               borderRadius: 20, padding: "2px 8px",
             }}>
               {activeIssues.length}
@@ -867,7 +868,7 @@ function IssueDetailModal({
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
                   padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500,
-                  background: "var(--mk-purple)", color: "#fff",
+                  background: "rgba(20,136,216,0.12)", color: "var(--accent)", border: "1px solid rgba(20,136,216,0.30)",
                   textDecoration: "none", transition: "opacity 0.12s",
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
@@ -1729,7 +1730,7 @@ function NotificationCenter({
           cursor: "pointer", transition: "all .15s",
         }}
       >
-        <Bell size={15} color={unread > 0 ? "var(--mk-purple)" : "var(--text-muted)"} />
+        <Bell size={15} color={unread > 0 ? "var(--accent)" : "var(--text-muted)"} />
         {unread > 0 && (
           <span style={{
             position: "absolute", top: 4, right: 4,
@@ -1830,7 +1831,7 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showTasksModal, setShowTasksModal] = useState(false);
-  const [showDoneThisWeek, setShowDoneThisWeek] = useState(false);
+  const [tasksView, setTasksView] = useState<"active" | "week" | "month">("active");
   const [showPastMeetingsModal, setShowPastMeetingsModal] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<CalendarEvent | null>(null);
   const [importantEventIds, setImportantEventIds] = useState<Set<string>>(() => {
@@ -2073,7 +2074,8 @@ export default function DashboardPage() {
   const doneIssues   = allIssues.filter((i) => doneIssueIds.has(i.id) || i.stateType === "completed" || i.stateType === "cancelled");
   const inProgress = activeIssues.filter((i) => i.stateType === "started");
   const todo       = activeIssues.filter((i) => i.stateType === "unstarted" || i.stateType === "backlog" || i.stateType === "triage");
-  const completedThisWeek = data?.completedThisWeek ?? [];
+  const completedThisWeek  = data?.completedThisWeek  ?? [];
+  const completedThisMonth = data?.completedThisMonth ?? [];
 
   function applyOrder(issues: LinearIssue[]): LinearIssue[] {
     if (issueOrder.length === 0) return issues;
@@ -2139,7 +2141,7 @@ export default function DashboardPage() {
     { label: "Emails não lidos",   value: loading ? "—" : String(data?.gmailMessages.length ?? 0), icon: Mail,          color: "var(--mk-green)",   bg: "rgba(0,232,122,0.12)",   delta: deltas.emails   },
     { label: "Menções no Slack",   value: loading ? "—" : String(data?.mentions.length ?? 0),       icon: MessageSquare, color: "var(--mk-blue)",    bg: "rgba(20,136,216,0.12)",  delta: deltas.mentions },
     { label: "Eventos hoje",       value: loading ? "—" : String(eventsToday.length),               icon: Calendar,      color: "var(--mk-magenta)", bg: "rgba(229,19,142,0.12)",  delta: deltas.events   },
-    { label: "Tasks em andamento", value: loading ? "—" : String(inProgress.length),                icon: CheckSquare,   color: "var(--mk-purple)",  bg: "rgba(123,47,222,0.12)",  delta: deltas.tasks    },
+    { label: "Tasks em andamento", value: loading ? "—" : String(inProgress.length),                icon: CheckSquare,   color: "var(--accent)",  bg: "rgba(20,136,216,0.12)",  delta: deltas.tasks    },
   ];
 
   // ── Sorted task list (inline preview) ──
@@ -2518,81 +2520,166 @@ export default function DashboardPage() {
           <Card>
             <SectionHeader
               icon="checkmark-circle-outline"
-              title={showDoneThisWeek ? "Concluídas esta semana" : "Minhas tasks"}
-              count={showDoneThisWeek ? completedThisWeek.length : activeIssues.length}
-              color="#7B2FDE"
+              title="Minhas tasks"
+              count={tasksView === "active" ? activeIssues.length : tasksView === "week" ? completedThisWeek.length : completedThisMonth.length}
+              color="var(--accent)"
               action={
-                showDoneThisWeek ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {tasksView === "active" && <SortDropdown value={taskSort} onChange={(v) => { setTaskSort(v); setIssueOrder([]); }} />}
                   <button
-                    onClick={() => setShowDoneThisWeek(false)}
+                    onClick={() => setShowTasksModal(true)}
                     style={{
                       display: "flex", alignItems: "center", gap: 4,
                       fontFamily: font, fontSize: 11, fontWeight: 600,
-                      color: "var(--text-muted)",
-                      background: "transparent",
-                      border: "1px solid var(--border-card)",
+                      color: "var(--accent)",
+                      background: "rgba(20,136,216,0.12)",
+                      border: "1px solid rgba(20,136,216,0.25)",
                       borderRadius: 7, padding: "4px 9px",
-                      cursor: "pointer",
+                      cursor: "pointer", transition: "all .15s",
                     }}
                   >
-                    ← Voltar
+                    <LayoutGrid size={11} />
+                    Ver todas
                   </button>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <SortDropdown value={taskSort} onChange={(v) => { setTaskSort(v); setIssueOrder([]); }} />
-                    <button
-                      onClick={() => setShowTasksModal(true)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        fontFamily: font, fontSize: 11, fontWeight: 600,
-                        color: "var(--mk-purple)",
-                        background: "rgba(123,47,222,0.12)",
-                        border: "1px solid rgba(123,47,222,0.25)",
-                        borderRadius: 7, padding: "4px 9px",
-                        cursor: "pointer", transition: "all .15s",
-                      }}
-                    >
-                      <LayoutGrid size={11} />
-                      Ver todas
-                    </button>
-                  </div>
-                )
+                </div>
               }
             />
 
-            {showDoneThisWeek ? (
-              /* ── Vista: Concluídas esta semana ── */
-              <div>
-                {loading ? (
+            {/* ── Tab switcher ──────────────────────────────────────────── */}
+            <div style={{
+              display: "flex", gap: 3, marginBottom: 14,
+              padding: "3px", borderRadius: 10,
+              background: "var(--bg-active)",
+              border: "1px solid var(--border-card)",
+            }}>
+              <button
+                onClick={() => setTasksView("active")}
+                style={{
+                  flex: 1, padding: "5px 8px",
+                  borderRadius: 7, border: "none",
+                  fontFamily: font, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", transition: "all .15s",
+                  background: tasksView === "active" ? "var(--bg-card-hover)" : "transparent",
+                  color: tasksView === "active" ? "var(--accent)" : "var(--text-muted)",
+                  boxShadow: tasksView === "active" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                }}
+              >
+                Ativas · {activeIssues.length}
+              </button>
+              <button
+                onClick={() => setTasksView("week")}
+                style={{
+                  flex: 1, padding: "5px 8px",
+                  borderRadius: 7, border: "none",
+                  fontFamily: font, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", transition: "all .15s",
+                  background: tasksView === "week" ? "rgba(0,232,122,0.12)" : "transparent",
+                  color: tasksView === "week" ? "var(--mk-green-text)" : "var(--text-muted)",
+                  boxShadow: tasksView === "week" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                }}
+              >
+                ✅ Semana · {completedThisWeek.length}
+              </button>
+              <button
+                onClick={() => setTasksView("month")}
+                style={{
+                  flex: 1, padding: "5px 8px",
+                  borderRadius: 7, border: "none",
+                  fontFamily: font, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", transition: "all .15s",
+                  background: tasksView === "month" ? "rgba(0,232,122,0.08)" : "transparent",
+                  color: tasksView === "month" ? "var(--mk-green-text)" : "var(--text-muted)",
+                  boxShadow: tasksView === "month" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                }}
+              >
+                📅 Mês · {completedThisMonth.length}
+              </button>
+            </div>
+
+            {(tasksView === "week" || tasksView === "month") ? (
+              /* ── Vista: Concluídas (semana ou mês), agrupadas por Ciclo ── */
+              (() => {
+                const pool = tasksView === "week" ? completedThisWeek : completedThisMonth;
+                const emptyLabel = tasksView === "week" ? "Nenhuma task concluída esta semana." : "Nenhuma task concluída este mês.";
+                if (loading) return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {[0, 1, 2].map((i) => <Skeleton key={i} height={40} />)}
                   </div>
-                ) : completedThisWeek.length === 0 ? (
-                  <EmptyState text="Nenhuma task concluída esta semana." />
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {completedThisWeek.map((issue) => (
-                      <IssueCard
-                        key={issue.id} issue={issue} compact
-                        states={linearStates} updatingId={updatingIssueId}
-                        onStatusChange={handleIssueStatusChange}
-                        onOpenModal={openIssueModal}
-                        onMarkDone={handleMarkDone}
-                        dragOverId={null}
-                        onDragStart={() => {}} onDragOver={() => {}} onDrop={() => {}}
-                      />
+                );
+                if (pool.length === 0) return <EmptyState text={emptyLabel} />;
+                const cycleMap = new Map<string, LinearIssue[]>();
+                pool.forEach((issue) => {
+                  const key = issue.cycleName ?? (issue.cycleNumber != null ? `Ciclo ${issue.cycleNumber}` : "— Sem ciclo");
+                  if (!cycleMap.has(key)) cycleMap.set(key, []);
+                  cycleMap.get(key)!.push(issue);
+                });
+                const groups = [...cycleMap.entries()].sort(([a], [b]) => {
+                  if (a === "— Sem ciclo") return 1;
+                  if (b === "— Sem ciclo") return -1;
+                  return a.localeCompare(b);
+                });
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {groups.map(([cycleName, issueList]) => (
+                      <div key={cycleName}>
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          marginBottom: 6, paddingBottom: 6,
+                          borderBottom: "1px solid var(--border-card)",
+                        }}>
+                          <span style={{
+                            fontFamily: font, fontSize: 9, fontWeight: 700,
+                            color: "var(--mk-green-text)",
+                            background: "rgba(0,232,122,0.10)",
+                            border: "1px solid rgba(0,232,122,0.20)",
+                            borderRadius: 5, padding: "2px 7px",
+                            letterSpacing: "0.05em", textTransform: "uppercase",
+                          }}>
+                            ⚡ {cycleName}
+                          </span>
+                          <span style={{
+                            fontSize: 10, color: "var(--text-muted)",
+                            background: "var(--bg-active)", padding: "1px 6px", borderRadius: 10,
+                            marginLeft: "auto",
+                          }}>
+                            {issueList.length}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {issueList.map((issue) => (
+                            <IssueCard
+                              key={issue.id} issue={issue} compact
+                              states={linearStates} updatingId={updatingIssueId}
+                              onStatusChange={handleIssueStatusChange}
+                              onOpenModal={openIssueModal}
+                              onMarkDone={handleMarkDone}
+                              dragOverId={null}
+                              onDragStart={() => {}} onDragOver={() => {}} onDrop={() => {}}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                )}
-              </div>
+                );
+              })()
             ) : (
-              /* ── Vista: Em andamento + A fazer + Concluídas ── */
+              /* ── Vista: Ativas ── */
               <>
                 {/* Em andamento */}
-                <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-purple)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, marginTop: 0, filter: "brightness(1.3)" }}>
-                    🔄 Em andamento · {loading ? "—" : inProgress.length}
-                  </p>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 7,
+                    paddingLeft: 8, marginBottom: 8,
+                    borderLeft: "2px solid var(--accent)",
+                  }}>
+                    <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Em andamento
+                    </span>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)", background: "var(--bg-active)", padding: "1px 6px", borderRadius: 10 }}>
+                      {loading ? "—" : inProgress.length}
+                    </span>
+                  </div>
                   {loading ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
@@ -2617,7 +2704,7 @@ export default function DashboardPage() {
                       {inProgress.length > 4 && (
                         <button
                           onClick={() => setShowTasksModal(true)}
-                          style={{ fontFamily: font, fontSize: 10, color: "var(--mk-purple)", padding: "4px 2px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                          style={{ fontFamily: font, fontSize: 10, color: "var(--accent)", padding: "4px 2px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
                         >
                           +{inProgress.length - 4} mais →
                         </button>
@@ -2627,10 +2714,19 @@ export default function DashboardPage() {
                 </div>
 
                 {/* A fazer */}
-                <div style={{ marginBottom: doneIssues.length > 0 ? 12 : 0 }}>
-                  <p style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, marginTop: 0 }}>
-                    📋 A fazer · {loading ? "—" : todo.length}
-                  </p>
+                <div style={{ marginBottom: doneIssues.length > 0 ? 14 : 0 }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 7,
+                    paddingLeft: 8, marginBottom: 8,
+                    borderLeft: "2px solid var(--border-hover)",
+                  }}>
+                    <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      A fazer
+                    </span>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)", background: "var(--bg-active)", padding: "1px 6px", borderRadius: 10 }}>
+                      {loading ? "—" : todo.length}
+                    </span>
+                  </div>
                   {loading ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
@@ -2664,18 +2760,19 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* Concluídas (sessão marcadas como done nesta sessão) */}
+                {/* Concluídas nesta sessão */}
                 {doneIssues.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, paddingTop: 8, borderTop: "1px solid var(--border-card)" }}>
-                      <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-blue)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                        ✅ Concluídas
+                  <div>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      paddingLeft: 8, marginBottom: 8,
+                      paddingTop: 8, borderTop: "1px solid var(--border-card)",
+                      borderLeft: "2px solid var(--mk-green-text)",
+                    }}>
+                      <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "var(--mk-green-text)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                        Concluídas
                       </span>
-                      <span style={{
-                        fontSize: 10, color: "var(--text-muted)",
-                        background: "rgba(20,136,216,0.12)", border: "1px solid rgba(20,136,216,0.25)",
-                        padding: "1px 6px", borderRadius: 20,
-                      }}>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", background: "rgba(0,232,122,0.10)", border: "1px solid rgba(0,232,122,0.20)", padding: "1px 6px", borderRadius: 10 }}>
                         {doneIssues.length}
                       </span>
                     </div>
@@ -2694,21 +2791,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Rodapé: botão "Ver concluídas esta semana" */}
-                <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid var(--border-card)" }}>
-                  <button
-                    onClick={() => setShowDoneThisWeek(true)}
-                    style={{
-                      width: "100%", padding: "7px", borderRadius: 8,
-                      background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.2)",
-                      color: "var(--mk-green-text, #16a34a)", fontFamily: font, fontSize: 11, fontWeight: 600,
-                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    }}
-                  >
-                    ✅ Ver concluídas esta semana · {completedThisWeek.length}
-                  </button>
-                </div>
               </>
             )}
           </Card>

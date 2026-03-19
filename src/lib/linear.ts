@@ -1,14 +1,15 @@
 import { LinearClient } from "@linear/sdk";
 
-// ─── In-memory cache (server-side, 1-hour TTL) ──────────────────────────────
-const TTL_MS = 60 * 60 * 1000;
+// ─── In-memory cache ─────────────────────────────────────────────────────────
+const TTL_MS = 60 * 60 * 1000;       // 1 hour (static data)
+const TTL_SHORT_MS = 5 * 60 * 1000;  // 5 min  (completed tasks — changes often)
 const cache = new Map<string, { data: unknown; expiresAt: number }>();
 
-async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
+async function cached<T>(key: string, fn: () => Promise<T>, ttl = TTL_MS): Promise<T> {
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.data as T;
   const data = await fn();
-  cache.set(key, { data, expiresAt: Date.now() + TTL_MS });
+  cache.set(key, { data, expiresAt: Date.now() + ttl });
   return data;
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,20 +172,18 @@ export function getMilestones() {
   return cached("milestones", _getMilestones);
 }
 
-async function _getCompletedThisWeek() {
+async function _getCompletedInRange(since: Date) {
   const client = getLinearClient();
   const me = await client.viewer;
-  const startOfWeek = new Date();
-  startOfWeek.setHours(0, 0, 0, 0);
-  // Segunda-feira da semana atual (BR)
-  const day = startOfWeek.getDay();
-  startOfWeek.setDate(startOfWeek.getDate() - (day === 0 ? 6 : day - 1));
-
   const issues = await me.assignedIssues({
-    filter: { completedAt: { gte: startOfWeek.toISOString() } },
+    filter: {
+      state: { type: { eq: "completed" } },
+      completedAt: { gte: since.toISOString() },
+    },
     orderBy: "updatedAt" as never,
+    first: 100,
   });
-  const resolved = await Promise.all(
+  return Promise.all(
     issues.nodes.map(async (i) => {
       const [state, project, team, cycle] = await Promise.all([i.state, i.project, i.team, i.cycle]);
       return {
@@ -205,9 +204,27 @@ async function _getCompletedThisWeek() {
       };
     })
   );
-  return resolved;
+}
+
+function getStartOfWeek() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); // segunda-feira BR
+  return d;
+}
+
+function getStartOfMonth() {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 export function getCompletedThisWeek() {
-  return cached("completedThisWeek", _getCompletedThisWeek);
+  return cached("completedThisWeek", () => _getCompletedInRange(getStartOfWeek()), TTL_SHORT_MS);
+}
+
+export function getCompletedThisMonth() {
+  return cached("completedThisMonth", () => _getCompletedInRange(getStartOfMonth()), TTL_SHORT_MS);
 }

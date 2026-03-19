@@ -5,6 +5,7 @@ import {
   updateIssueStatus,
   getIssueDetails,
   getCompletedThisWeek,
+  getCompletedThisMonth,
 } from "@/lib/linear";
 
 export async function GET(req: Request) {
@@ -22,12 +23,13 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [issues, states, completedThisWeek] = await Promise.all([
+    const [issues, states, completedThisWeek, completedThisMonth] = await Promise.all([
       getMyIssues(),
       getWorkflowStates(),
       getCompletedThisWeek(),
+      getCompletedThisMonth(),
     ]);
-    return NextResponse.json({ issues, states, completedThisWeek });
+    return NextResponse.json({ issues, states, completedThisWeek, completedThisMonth });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

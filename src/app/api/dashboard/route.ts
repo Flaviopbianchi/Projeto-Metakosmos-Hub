@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCalendarEvents, getGmailMessages } from "@/lib/google";
-import { getMyIssues } from "@/lib/linear";
+import { getMyIssues, getCompletedThisWeek, getCompletedThisMonth } from "@/lib/linear";
 import {
   getChannelMessages,
   searchMessages,
@@ -53,6 +53,8 @@ export async function GET() {
     calendarEvents,
     gmailMessages,
     linearIssues,
+    completedThisWeek,
+    completedThisMonth,
     goldenPizzaRaw,
     woowRaw,
     mentionsRaw,
@@ -64,6 +66,8 @@ export async function GET() {
       ? getGmailMessages(session.accessToken).catch(catchErr("google_gmail"))
       : Promise.resolve([]),
     getMyIssues().catch(catchErr("linear")),
+    getCompletedThisWeek().catch(catchErr("linear_completed_week")),
+    getCompletedThisMonth().catch(catchErr("linear_completed_month")),
     // Use hardcoded channel ID — fetches last 10 messages (Golden Pizza)
     getChannelMessages(GOLDEN_PIZZA_CHANNEL_ID, 10).catch(catchErr("slack_golden_pizza")),
     // Use hardcoded channel ID — fetches last 60 messages to find recent nominations (WooW)
@@ -99,6 +103,8 @@ export async function GET() {
     calendarEvents,
     gmailMessages,
     linearIssues,
+    completedThisWeek,
+    completedThisMonth,
     goldenPizzaMessages,
     woowMessages,
     mentions,

@@ -48,10 +48,10 @@
   --text-muted:      rgba(255, 255, 255, 0.38);
   --text-placeholder:rgba(255, 255, 255, 0.28);
 
-  /* Accent — light purple for AAA on dark bg */
-  --accent:          #C4B5FD;
-  --accent-dim:      rgba(196, 181, 253, 0.15);
-  --accent-border:   var(--mk-purple);
+  /* Accent — sky-blue for AAA on dark bg (8.8:1 ✅) */
+  --accent:          #5BB8F5;
+  --accent-dim:      rgba(20, 136, 216, 0.15);
+  --accent-border:   var(--mk-blue);
 
   /* Glass surface */
   --glass-bg:        rgba(255, 255, 255, 0.07);
@@ -97,10 +97,10 @@
   --text-muted:      rgba(0, 0, 0, 0.46);
   --text-placeholder:rgba(0, 0, 0, 0.32);
 
-  /* Accent — dark purple for AAA on light bg */
-  --accent:          #6D28D9;
-  --accent-dim:      rgba(109, 40, 217, 0.10);
-  --accent-border:   var(--mk-purple);
+  /* Accent — dark blue for AAA on light bg (7.1:1 ✅) */
+  --accent:          #00509B;
+  --accent-dim:      rgba(0, 80, 155, 0.10);
+  --accent-border:   var(--mk-blue);
 
   --glass-bg:        rgba(255, 255, 255, 0.65);
   --glass-border:    rgba(255, 255, 255, 0.80);
@@ -164,7 +164,7 @@ p, span, h1, h2, h3, h4, h5, h6, a, button, li {
 .glass-button:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.28), 0 0 0 1px var(--mk-purple-glow);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.28), 0 0 0 1px var(--mk-blue-glow);
   transform: translateY(-1px);
 }
 
@@ -184,7 +184,7 @@ p, span, h1, h2, h3, h4, h5, h6, a, button, li {
 .mk-card-hover:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
-  box-shadow: 0 0 0 1px var(--mk-purple-glow), var(--shadow-card);
+  box-shadow: 0 0 0 1px var(--mk-blue-glow), var(--shadow-card);
 }
 
 /* ── Light mode overrides for dark Tailwind opacity classes ─
@@ -210,10 +210,10 @@ p, span, h1, h2, h3, h4, h5, h6, a, button, li {
 [data-theme="light"] .text-white\/30 { color: rgba(0,0,0,0.44) !important; }
 
 /* Violet/purple accent classes — remap for light mode */
-[data-theme="light"] .text-violet-400  { color: #6D28D9 !important; }
-[data-theme="light"] .border-violet-500\/40 { border-color: rgba(109,40,217,0.40) !important; }
-[data-theme="light"] .border-violet-500\/20 { border-color: rgba(109,40,217,0.20) !important; }
-[data-theme="light"] .bg-violet-500   { background-color: #7C3AED !important; }
+[data-theme="light"] .text-violet-400  { color: #00509B !important; }
+[data-theme="light"] .border-violet-500\/40 { border-color: rgba(0,80,155,0.40) !important; }
+[data-theme="light"] .border-violet-500\/20 { border-color: rgba(0,80,155,0.20) !important; }
+[data-theme="light"] .bg-violet-500   { background-color: #1488D8 !important; }
 [data-theme="light"] .text-amber-400  { color: #D97706 !important; }
 [data-theme="light"] .text-red-400    { color: #DC2626 !important; }
 [data-theme="light"] .text-orange-400 { color: #EA580C !important; }
@@ -227,12 +227,12 @@ p, span, h1, h2, h3, h4, h5, h6, a, button, li {
 }
 [data-theme="light"] .border-amber-500\/20 { border-color: rgba(245,158,11,0.25) !important; }
 [data-theme="light"] .bg-gradient-to-br.from-violet-500\/10 {
-  background: linear-gradient(135deg, rgba(109,40,217,0.08), rgba(99,102,241,0.04)) !important;
+  background: linear-gradient(135deg, rgba(0,80,155,0.08), rgba(20,136,216,0.04)) !important;
 }
 
 /* Hover state remaps */
 [data-theme="light"] .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.07) !important; }
-[data-theme="light"] .hover\:border-violet-500\/40:hover { border-color: rgba(109,40,217,0.40) !important; }
+[data-theme="light"] .hover\:border-violet-500\/40:hover { border-color: rgba(0,80,155,0.40) !important; }
 
 /* Additional white/opacity text classes (Slack page) */
 [data-theme="light"] .text-white\/90 { color: rgba(0,0,0,0.88) !important; }
@@ -245,9 +245,9 @@ p, span, h1, h2, h3, h4, h5, h6, a, button, li {
 [data-theme="light"] .text-emerald-300  { color: #059669 !important; }
 [data-theme="light"] .text-blue-400     { color: #1d4ed8 !important; }
 [data-theme="light"] .hover\:text-blue-300:hover { color: #2563eb !important; }
-[data-theme="light"] .text-violet-300   { color: #6D28D9 !important; }
-[data-theme="light"] .bg-violet-500\/15 { background-color: rgba(109,40,217,0.10) !important; }
-[data-theme="light"] .bg-violet-600\/30 { background-color: rgba(109,40,217,0.12) !important; }
+[data-theme="light"] .text-violet-300   { color: #00509B !important; }
+[data-theme="light"] .bg-violet-500\/15 { background-color: rgba(0,80,155,0.10) !important; }
+[data-theme="light"] .bg-violet-600\/30 { background-color: rgba(0,80,155,0.12) !important; }
 
 /* Hardcoded dark bg values used in Slack code blocks & dropdowns */
 [data-theme="light"] .bg-\[\#0d0d1a\]   { background-color: #eef0f5 !important; }
@@ -285,7 +285,7 @@ p, span, h1, h2, h3, h4, h5, h6, a, button, li {
 
 /* ── Focus ring ──────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--mk-purple);
+  outline: 2px solid var(--mk-blue);
   outline-offset: 2px;
 }
 
